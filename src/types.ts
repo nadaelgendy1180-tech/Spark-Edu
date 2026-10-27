@@ -1,0 +1,10 @@
+import type {Timestamp} from 'firebase/firestore';
+export type Profile={id:string; name:string; email:string; role:'admin'|'specialist'; state:'pending'|'active'|'blocked'; subscriptionExpiresAt?:Timestamp; createdAt?:Timestamp};
+export type Child={id:string; ownerUid:string; name:string; dateOfBirth?:string; notes?:string; createdAt?:Timestamp};
+export type Program={id:string;name:string;description?:string; source?:string; updatedAt?:Timestamp};
+export type Domain={id:string;name:string;order:number};
+export type Goal={id:string;text:string;code?:string;order:number;needsReview?:boolean;approved?:boolean; age?:string};
+export type Assessment={id:string;ownerUid:string;childId:string;childName:string;programId:string;programName:string;createdAt?:Timestamp; updatedAt?:Timestamp};
+export type Answer='mastered'|'not_mastered';
+export type AnswerMap=Record<string,Answer>;
+export type PlanItem={domain:string;code?:string;text:string;note?:string};

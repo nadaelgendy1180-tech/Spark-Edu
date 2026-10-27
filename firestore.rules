@@ -1,0 +1,91 @@
+rules_version = '2';
+service cloud.firestore {
+ match /databases/{database}/documents {
+  function signedIn() { return request.auth != null; }
+  function self(uid) { return signedIn() && request.auth.uid == uid; }
+  function profile() { return get(/databases/$(database)/documents/users/$(request.auth.uid)); }
+  function isAdmin() { return signedIn() && profile().data.role == 'admin'; }
+  function active() { return signedIn() && (
+    isAdmin() || (
+      profile().data.state == 'active' &&
+      profile().data.subscriptionExpiresAt is timestamp &&
+      profile().data.subscriptionExpiresAt > request.time
+    ));
+  }
+  function ownActive(ownerUid) { return active() && (isAdmin() || ownerUid == request.auth.uid); }
+  match /users/{uid} {
+   allow get: if self(uid) || isAdmin();
+   allow list: if isAdmin();
+   allow create: if self(uid)
+    && request.resource.data.keys().hasOnly(['name','email','role','state','subscriptionExpiresAt','createdAt','updatedAt'])
+    && request.resource.data.role == 'specialist'
+    && request.resource.data.state == 'pending'
+    && request.resource.data.email == request.auth.token.email
+    && request.resource.data.name is string
+    && request.resource.data.subscriptionExpiresAt is timestamp
+    && request.resource.data.subscriptionExpiresAt < request.time;
+   allow update: if isAdmin() || (self(uid)
+     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','updatedAt'])
+     && request.resource.data.name is string);
+   allow delete: if false;
+  }
+  match /children/{childId} {
+   allow get,list: if ownActive(resource.data.ownerUid);
+   allow create: if signedIn() && active()
+     && request.resource.data.ownerUid == request.auth.uid
+     && request.resource.data.name is string
+     && request.resource.data.name.size() <= 150;
+   allow update: if ownActive(resource.data.ownerUid)
+     && request.resource.data.ownerUid == resource.data.ownerUid
+     && request.resource.data.name is string;
+   allow delete: if ownActive(resource.data.ownerUid);
+  }
+  match /programs/{programId} {
+   allow read: if active();
+   allow write: if isAdmin();
+   match /domains/{domainId} {
+    allow read: if active();
+    allow write: if isAdmin();
+    match /goals/{goalId} {
+     allow read: if active();
+     allow write: if isAdmin();
+    }
+   }
+  }
+  match /assessments/{assessmentId} {
+   allow get,list: if ownActive(resource.data.ownerUid);
+   allow create: if active() && request.resource.data.ownerUid == request.auth.uid
+      && exists(/databases/$(database)/documents/children/$(request.resource.data.childId))
+      && get(/databases/$(database)/documents/children/$(request.resource.data.childId)).data.ownerUid == request.auth.uid
+      && request.resource.data.programId is string;
+   allow update: if ownActive(resource.data.ownerUid)
+      && request.resource.data.ownerUid == resource.data.ownerUid
+      && request.resource.data.childId == resource.data.childId
+      && request.resource.data.programId == resource.data.programId;
+   allow delete: if ownActive(resource.data.ownerUid);
+   match /responses/{domainId} {
+    function ownsAssessment() {
+     return ownActive(get(/databases/$(database)/documents/assessments/$(assessmentId)).data.ownerUid);
+    }
+    allow read: if ownsAssessment();
+    allow create,update: if ownsAssessment()
+     && request.resource.data.keys().hasOnly(['values','updatedAt'])
+     && request.resource.data.values is map;
+    allow delete: if ownsAssessment();
+   }
+  }
+  match /plans/{planId} {
+   allow get,list: if ownActive(resource.data.ownerUid);
+   allow create: if active() && request.resource.data.ownerUid == request.auth.uid
+    && exists(/databases/$(database)/documents/assessments/$(planId))
+    && get(/databases/$(database)/documents/assessments/$(planId)).data.ownerUid == request.auth.uid;
+   allow update: if ownActive(resource.data.ownerUid) && request.resource.data.ownerUid == resource.data.ownerUid;
+   allow delete: if ownActive(resource.data.ownerUid);
+  }
+  match /auditLogs/{auditId} {
+   allow read: if isAdmin();
+   allow create: if isAdmin() && request.resource.data.actorUid == request.auth.uid;
+   allow update,delete: if false;
+  }
+ }
+}
