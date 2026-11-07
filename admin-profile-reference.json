@@ -1,0 +1,13 @@
+{
+  "note": "Reference for manual entry only. Firebase Console Firestore does not import this JSON file directly.",
+  "firebaseProjectId": "speak-d6e7f",
+  "collection": "users",
+  "documentId": "REPLACE_WITH_REAL_AUTHENTICATION_UID",
+  "fields": {
+    "name": { "type": "string", "value": "ندي الجندي" },
+    "email": { "type": "string", "value": "REPLACE_WITH_REAL_ADMIN_EMAIL" },
+    "role": { "type": "string", "value": "admin" },
+    "state": { "type": "string", "value": "active" },
+    "subscriptionExpiresAt": { "type": "timestamp", "value": "2100-01-01T00:00:00Z" }
+  }
+}
