@@ -1,12 +1,12 @@
-// Spark Edu: static interface fallback. NEVER cache Firebase API responses or user data.
-const CACHE='spark-edu-shell-v1';
+// SPEAK: static interface fallback. NEVER cache Firebase API responses or user data.
+const CACHE='speak-shell-v2';
 const SHELL=['/','/manifest.webmanifest','/app-icon-192.png','/app-icon-512.png','/center-logo.jpeg','/center-photo.jpeg'];
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting()));
 });
 self.addEventListener('activate',event=>{
   event.waitUntil(Promise.all([
-    caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('spark-edu-shell-')&&key!==CACHE).map(key=>caches.delete(key)))),
+    caches.keys().then(keys=>Promise.all(keys.filter(key=>(key.startsWith('spark-edu-shell-')||key.startsWith('speak-shell-'))&&key!==CACHE).map(key=>caches.delete(key)))),
     self.clients.claim()
   ]));
 });

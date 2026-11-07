@@ -1,10 +1,8 @@
-/** Register a static-shell service worker. It never stores Firebase user data. */
-export function registerSparkPWA(){
+/** Register a static shell service worker. No user records are cached. */
+export function registerSpeakPWA(){
   if(!('serviceWorker' in navigator))return;
-  const register=()=>{
+  window.addEventListener('load',()=>{
     navigator.serviceWorker.register('/sw.js',{scope:'/'})
-      .catch((error:unknown)=>console.info('تعذر تشغيل دعم تثبيت Spark Edu:',error));
-  };
-  if(document.readyState==='complete')register();
-  else window.addEventListener('load',register,{once:true});
+      .catch((error:unknown)=>console.info('تعذر تشغيل دعم تثبيت SPEAK:',error));
+  },{once:true});
 }

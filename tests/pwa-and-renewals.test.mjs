@@ -18,7 +18,7 @@ test('PWA manifest and icon paths are valid',()=>{
   assert.ok(m.icons.length>=2);
   for(const i of m.icons)assert.ok(fs.existsSync(new URL('../public'+i.src,import.meta.url)));
   assert.match(read('index.html'),/manifest\.webmanifest/);
-  assert.match(read('src/main.tsx'),/registerSparkPWA\(\)/);
+  assert.match(read('src/main.tsx'),/registerSpeakPWA\(\)/);
 });
 test('Center imagery present and page responsive',()=>{
   assert.match(read('src/App.tsx'),/center-logo\.jpeg/);

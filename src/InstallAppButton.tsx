@@ -32,5 +32,5 @@ export default function InstallAppButton({compact=false}:{compact?:boolean}) {
       : 'من قائمة المتصفح (⋮) اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية». قد لا يدعم متصفحك التثبيت المباشر.');
   };
   return <button className={'install-app-button'+(compact?' compact':'')} type="button" onClick={install}
-    title="تثبيت Spark Edu على الجهاز"><Download size={16} aria-hidden="true"/>{compact?'تثبيت التطبيق':'تثبيت Spark Edu كتطبيق ويب'}</button>;
+    title="تثبيت SPEAK على الجهاز"><Download size={16} aria-hidden="true"/>{compact?'تثبيت التطبيق':'تثبيت SPEAK كتطبيق ويب'}</button>;
 }

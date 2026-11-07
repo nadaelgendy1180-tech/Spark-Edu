@@ -2,7 +2,7 @@ import React,{useEffect,useState} from 'react';
 import {
   BookOpen, ClipboardCheck, FileText, GraduationCap, LayoutDashboard, LogOut, Plus,
   ShieldCheck, UserRound, Users, ChevronLeft, CheckCircle2, CircleX,
-  Printer, Download, Pencil, Save, LockKeyhole, RefreshCw, ListChecks, CalendarClock
+  Printer, Download, Pencil, Save, LockKeyhole, RefreshCw, ListChecks, CalendarClock, MessageCircle
 } from 'lucide-react';
 import {app,auth,db} from './firebase';
 import {initializeApp,getApps} from 'firebase/app';
@@ -41,7 +41,45 @@ type RenewalRequest={id:string;uid:string;email:string;name:string;status:'pendi
 const nowDate=()=>new Date().toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'});
 const dateFrom=(t?:Timestamp)=>t?.toDate().toLocaleDateString('ar-EG')||'—';
 const message=(e:unknown)=>e instanceof Error ?e.message:'حدث خطأ غير متوقع';
-function Logo(){return <span className="brand-logo"><img src="/app-icon-192.png" alt="شعار منصة Spark Edu" width={46} height={46}/></span>;}
+
+// Public support line: WhatsApp opens a pre-filled, editable message. It does NOT
+// automatically verify email ownership or activate subscriptions.
+const SUPPORT_WHATSAPP_NUMBER='201096585287';
+const SUPPORT_WHATSAPP_DISPLAY='+20 109 658 5287';
+type SupportReason='activation'|'renewal'|'question';
+function whatsappHref(reason:SupportReason,email?:string|null):string{
+ const subject=reason==='activation'?'تفعيل حسابي / بريدي المسجل':reason==='renewal'?'تجديد اشتراكي الشهري':'الاستفسار عن منصة SPEAK';
+ const account=email?.trim()?`\nالبريد المسجل: ${email.trim()}`:'';
+ return `https://wa.me/${SUPPORT_WHATSAPP_NUMBER}?text=${encodeURIComponent(`السلام عليكم، أريد ${subject} في منصة SPEAK.${account}`)}`;
+}
+function WhatsAppContact({reason,email,compact=false}:{reason:SupportReason;email?:string|null;compact?:boolean}){
+ return <a className={'whatsapp-button'+(compact?' compact':'')}
+  href={whatsappHref(reason,email)} target="_blank" rel="noopener noreferrer"
+  aria-label={`التواصل مع إدارة SPEAK على واتساب ${SUPPORT_WHATSAPP_DISPLAY}`}>
+  <MessageCircle size={18} aria-hidden="true"/>
+  <span>{reason==='activation'?'واتساب لتفعيل الحساب':reason==='renewal'?'واتساب لتجديد الاشتراك':'تواصل واتساب'}</span>
+  {!compact&&<b className="whatsapp-phone" dir="ltr">{SUPPORT_WHATSAPP_DISPLAY}</b>}
+ </a>;
+}
+
+function Logo(){return <span className="brand-logo"><img src="/app-icon-192.png" alt="شعار منصة SPEAK" width={46} height={46}/></span>;}
+
+/** Keep the original photograph intact: responsive crop and framing only. */
+function FounderCard({variant='auth'}:{variant?:'auth'|'hero'}){
+ return <div className={'founder-card founder-card--'+variant} aria-label="فكرة وإعداد دكتورة ندا الجندي">
+  <div className="founder-picture"><img src="/center-photo.jpeg" alt="صورة دكتورة ندا الجندي" width={682} height={780} loading={variant==='auth'?'eager':'lazy'} decoding="async"/></div>
+  <div className="founder-details">
+   <span className="founder-label">فكرة وإعداد</span>
+   <strong className="founder-name">دكتورة ندا الجندي</strong>
+   <span className="founder-description">منصة SPEAK للتقييم والتأهيل</span>
+   <img className="founder-center-mark" src="/center-logo.jpeg" alt="شعار المركز" width={48} height={48} loading="lazy"/>
+  </div>
+ </div>;
+}
+function PlatformCredit(){return <footer className="platform-credit no-print" aria-label="حقوق إعداد المنصة">
+ <span>فكرة وإعداد <strong>دكتورة ندا الجندي</strong></span><span className="credit-dot" aria-hidden="true">•</span><small>SPEAK © {new Date().getFullYear()}</small>
+ </footer>;}
+
 function Pill({children,kind='muted'}:{children:React.ReactNode;kind?:'muted'|'good'|'bad'|'gold'}){return <span className={'pill '+kind}>{children}</span>;}
 function Empty({title,desc}:{title:string;desc:string}){return <div className="empty"><div className="empty-symbol"><BookOpen size={30}/></div><h3>{title}</h3><p>{desc}</p></div>;}
 
@@ -66,20 +104,20 @@ function AuthScreen(){
   catch(e){setError(message(e));}}
  return <div className="auth-layout">
   <section className="auth-visual"><div className="glow glow-one"/><div className="glow glow-two"/>
-   <div className="auth-logo"><Logo/><strong>Spark <em>Edu</em></strong></div>
+   <div className="auth-logo"><Logo/><strong>SPEAK</strong></div>
    <div className="auth-pitch"><span className="eyebrow light">منصة تعليمية احترافية</span>
     <h1>تقييم أدقّ.<br/><span>تقدّم أوضح.</span></h1>
     <p>برامج متخصصة في التقييم والتدخل المبكر، وخطط تربوية فردية منظمة في مساحة عمل واحدة.</p>
     <div className="features"><span><ShieldCheck size={17}/> بيانات محمية</span><span><ClipboardCheck size={17}/> تقييم حسب المجالات</span><span><FileText size={17}/> خطط قابلة للتصدير</span></div>
-    <div className="auth-images"><img src="/center-logo.jpeg" alt="شعار مركز حكاية طفل"/><img src="/center-photo.jpeg" alt="صورة الجهة التعليمية"/></div>
-   </div><span className="auth-foot">SPARK EDU • 2026</span>
+   <FounderCard variant="auth"/>
+   </div><span className="auth-foot">SPEAK • 2026</span>
   </section>
   <section className="auth-form"><div className="auth-card">
    <div className="mobile-brand-showcase">
-    <img className="mobile-center-photo" src="/center-photo.jpeg" alt="صورة مركز حكاية طفل"/>
-    <div className="mobile-brand-copy"><img src="/center-logo.jpeg" alt="شعار مركز حكاية طفل"/><span>منصة Spark Edu<br/>للتقييم والتأهيل</span></div>
+    <img className="mobile-center-photo" src="/center-photo.jpeg" alt="صورة دكتورة ندا الجندي" width={682} height={780} loading="eager" decoding="async"/>
+    <div className="mobile-brand-copy"><img src="/center-logo.jpeg" alt="شعار المركز" width={66} height={66}/><span><strong>SPEAK</strong><small>منصة التقييم والتأهيل</small><em>فكرة وإعداد دكتورة ندا الجندي</em></span></div>
    </div>
-   <div className="mobile-mark"><Logo/><strong>Spark Edu</strong></div>
+   <div className="mobile-mark"><Logo/><strong>SPEAK</strong></div>
    <span className="eyebrow">مرحبًا بك</span><h2>{mode==='login'?'سجّل دخولك':'أنشئ حسابك'}</h2>
    <p className="subtle">{mode==='login'?'ابدأ التقييم وأكمل خطط الأطفال من آخر نقطة.':'بعد التسجيل، فعّل اشتراكك من إدارة المنصة.'}</p>
    <form onSubmit={submit}>
@@ -92,6 +130,10 @@ function AuthScreen(){
    <div className="auth-bottom">
     <button className="link" type="button" onClick={()=>{setMode(mode==='login'?'signup':'login');setError('');}}>{mode==='login'?'ليس لديك حساب؟ أنشئ حسابًا':'لديك حساب؟ سجّل دخولك'}</button>
     {mode==='login'&&<button className="link" type="button" onClick={reset}>نسيت كلمة المرور؟</button>}
+   </div>
+   <div className="auth-support">
+    <p className="hint">بعد إنشاء الحساب، تواصل مع الإدارة لتفعيل الاشتراك. واتساب للتواصل فقط، والتفعيل يتم من لوحة الإدارة.</p>
+    <WhatsAppContact reason="activation" email={email}/>
    </div>
    <div className="auth-install"><InstallAppButton/></div>
   </div></section>
@@ -110,6 +152,7 @@ export default function App(){
  const [renewalBusy,setRenewalBusy]=useState(false);
  const [childName,setChildName]=useState(''),[birthDate,setBirthDate]=useState(''),[childNotes,setChildNotes]=useState('');
  const [busy,setBusy]=useState(false);
+ const [loggingOut,setLoggingOut]=useState(false);
  const [now,setNow]=useState(Date.now());
  const [newSubscriberName,setNewSubscriberName]=useState(''),[newSubscriberEmail,setNewSubscriberEmail]=useState('');
  const [newSubscriberPassword,setNewSubscriberPassword]=useState('');
@@ -139,7 +182,26 @@ export default function App(){
  const nearExpiry=!admin&&enabled&&(profile?.subscriptionExpiresAt?.toMillis()||0)-now <= 7*86400000;
 
  const banner=(txt:string)=>{setToast(txt);setTimeout(()=>setToast(''),4300);};
- useEffect(()=>onAuthStateChanged(auth,u=>{setUser(u);setLoading(false);}),[]);
+ async function handleLogout(){
+  if(loggingOut)return;
+  setLoggingOut(true);
+  try{
+   await signOut(auth);
+   // Clear sensitive data from the React session on every account switch.
+   setProfile(null);setProfileMissing(false);setChildren([]);setAssessments([]);
+   setPrograms([]);setUsers([]);setAudits([]);setRenewals([]);
+   setRenewalRequested(false);setActive(null);setPlan(null);setTab('home');
+   setAllPlanItems([]);setAnswers({});setToast('');
+  }catch(e){banner('تعذر تسجيل الخروج: '+message(e));}
+  finally{setLoggingOut(false);}
+ }
+ useEffect(()=>onAuthStateChanged(auth,u=>{
+  setUser(u);
+  if(!u){setProfile(null);setProfileMissing(false);setChildren([]);setAssessments([]);
+   setPrograms([]);setUsers([]);setAudits([]);setRenewals([]);setRenewalRequested(false);
+   setActive(null);setPlan(null);setAnswers({});setTab('home');}
+  setLoading(false);
+ }),[]);
  useEffect(()=>{const timer=window.setInterval(()=>setNow(Date.now()),30000);return()=>window.clearInterval(timer);},[]);
 
  useEffect(()=>{
@@ -319,8 +381,8 @@ export default function App(){
   if(!window.confirm(`إنشاء حساب ${name} وتفعيله لمدة 30 يومًا؟`))return;
   setSubscriberBusy(true);
   // A separate, in-memory Auth instance prevents signing the administrator out.
-  const secondaryApp=getApps().find(a=>a.name==='spark-edu-provisioning')
-   ||initializeApp(app.options,'spark-edu-provisioning');
+  const secondaryApp=getApps().find(a=>a.name==='speak-provisioning')
+   ||initializeApp(app.options,'speak-provisioning');
   const secondaryAuth=getAuth(secondaryApp);
   try{
    await setPersistence(secondaryAuth,inMemoryPersistence);
@@ -389,25 +451,32 @@ export default function App(){
    await setDoc(g,{text:newGoalText.trim(),code:'',order:Date.now(),approved:true,needsReview:false,updatedAt:serverTimestamp()});
    setNewGoalText('');banner('تمت إضافة الهدف');}catch(e){banner(message(e));}
  }
- if(loading)return <div className="loading"><Logo/><p>جارٍ فتح Spark Edu…</p></div>;
+ if(loading)return <div className="loading"><Logo/><p>جارٍ فتح SPEAK…</p></div>;
  if(!user)return <AuthScreen/>;
- if(!profile)return <div className="loading"><Logo/><p>{profileMissing?'حسابك لا يحتوي على ملف صلاحيات؛ إن أنشأت الحساب للتو انتظر اكتمال التسجيل، وإلا راجع مدير المنصة.':'جارٍ إعداد الحساب…'}</p><button className="btn" onClick={()=>signOut(auth)}>تسجيل الخروج</button></div>;
+ if(!profile)return <div className="loading"><Logo/><p>{profileMissing?'حسابك لا يحتوي على ملف صلاحيات؛ إن أنشأت الحساب للتو انتظر اكتمال التسجيل، وإلا راجع مدير المنصة.':'جارٍ إعداد الحساب…'}</p>
+  <WhatsAppContact reason="activation" email={user.email}/>
+  <button type="button" className="logout-button" onClick={handleLogout} disabled={loggingOut}><LogOut size={18}/>{loggingOut?'جارٍ الخروج…':'تسجيل الخروج'}</button></div>;
  if(!enabled)return <div className="activation">
-  <div className="activation-card"><Logo/><span className="eyebrow">Spark Edu</span>
+  <div className="activation-card"><Logo/><span className="eyebrow">SPEAK</span>
    <div className="lock"><LockKeyhole size={38}/></div>
    <h1>{profile.state==='blocked'?'الحساب موقوف':profile.state==='active'?'انتهت مدة الاشتراك':'حسابك في انتظار التفعيل'}</h1>
    <p>مرحبًا {profile.name}، {profile.state==='active'?'انتهى اشتراكك الشهري. بياناتك محفوظة، ويمكنك استعادة استخدام جميع أقسام المنصة فور تجديد الاشتراك من الإدارة.':profile.state==='blocked'?'الحساب موقوف حاليًا، تواصلي مع الإدارة لمعرفة سبب الإيقاف.':'حسابك مسجل وبانتظار تفعيل اشتراكه من الإدارة.'}</p>
    <Pill kind="gold">{profile.state==='active'?`تاريخ الانتهاء: ${dateFrom(profile.subscriptionExpiresAt)}`:'التفعيل من إدارة المنصة'}</Pill>
    <button className="btn primary wide" style={{marginTop:14}} onClick={requestRenewal} disabled={renewalRequested||renewalBusy}>
     {renewalRequested?'طلب التجديد وصل للإدارة':renewalBusy?'جارٍ إرسال الطلب':'إرسال طلب تجديد للإدارة'}</button>
-   <p className="hint">للتواصل المباشر: <a href={`mailto:${ADMIN_EMAIL}`}>{ADMIN_EMAIL}</a></p>
+   <div className="activation-whatsapp">
+    <p className="hint">لو عايز تفعّل الحساب أو تجدد الاشتراك، اضغط واتساب للتواصل المباشر. التفعيل بيتم من لوحة الإدارة بعد تأكيد الطلب.</p>
+    <WhatsAppContact reason={profile.state==='active'?'renewal':'activation'} email={profile.email}/>
+   </div>
+   <p className="hint">البريد الإلكتروني للإدارة: <a href={`mailto:${ADMIN_EMAIL}`}>{ADMIN_EMAIL}</a></p>
    <Pill kind="gold">البريد: {profile.email}</Pill>
-   <button className="btn primary wide" style={{marginTop:26}} onClick={()=>signOut(auth)}>العودة لتسجيل الدخول</button>
+   <p className="activation-credit">فكرة وإعداد <strong>دكتورة ندا الجندي</strong></p>
+   <button type="button" className="logout-button activation-logout" onClick={handleLogout} disabled={loggingOut}><LogOut size={18}/>{loggingOut?'جارٍ الخروج…':'تسجيل الخروج'}</button>
   </div>
  </div>;
  return <div className="shell">
   <aside className="sidebar">
-   <div className="side-head"><Logo/><div><strong>Spark Edu</strong><small>منصة التقييم والتأهيل</small></div></div>
+   <div className="side-head"><Logo/><div><strong>SPEAK</strong><small>منصة التقييم والتأهيل</small><small className="side-credit">فكرة وإعداد دكتورة ندا الجندي</small></div></div>
    <div className="side-group">القائمة الرئيسية</div>
    {([
     ['home','الرئيسية',LayoutDashboard],['children','ملفات الأطفال',Users],
@@ -415,23 +484,33 @@ export default function App(){
     ...(admin?[['admin','إدارة المنصة',ShieldCheck]]:[])
    ] as [Tab,string,typeof LayoutDashboard][]).map(([key,label,Icon])=><button key={key}
     className={'nav-btn '+(tab===key?'on':'')} onClick={()=>changeTab(key)}><Icon size={19}/><span>{label}</span></button>)}
-   <div className="side-grow"/><div className="account">
+   <div className="side-grow"/>
+   <div className="sidebar-quick-actions">
+    {!admin&&<WhatsAppContact reason="renewal" email={profile.email} compact/>}
+    <button type="button" className="logout-button" onClick={handleLogout} disabled={loggingOut}><LogOut size={18}/>{loggingOut?'جارٍ الخروج…':'تسجيل الخروج'}</button>
+   </div>
+   <div className="account">
     <div className="avatar">{profile.name.slice(0,1)}</div><div className="account-info"><strong>{profile.name}</strong><small>{admin?'مدير المنصة':'أخصائي • اشتراك نشط'}</small></div>
-    <button title="خروج" className="icon-btn" onClick={()=>signOut(auth)}><LogOut size={18}/></button>
    </div>
   </aside>
   <main className="main">
-   <div className="topbar"><div className="breadcrumbs">منصة Spark Edu <ChevronLeft size={15}/> {({home:'الرئيسية',children:'ملفات الأطفال',assessments:'التقييمات',plans:'الخطط التربوية',admin:'إدارة المنصة'} as Record<Tab,string>)[tab]}</div>
-    <div className="topbar-actions"><InstallAppButton compact/><Pill kind={nearExpiry?'gold':'good'}>{admin?'حساب إداري':`الاشتراك: ${remainingText(profile.subscriptionExpiresAt,now)} متبقية`}</Pill></div></div>
+   <div className="topbar"><div className="breadcrumbs">منصة SPEAK <ChevronLeft size={15}/> {({home:'الرئيسية',children:'ملفات الأطفال',assessments:'التقييمات',plans:'الخطط التربوية',admin:'إدارة المنصة'} as Record<Tab,string>)[tab]}</div>
+    <div className="topbar-actions">
+     <InstallAppButton compact/>
+     <Pill kind={nearExpiry?'gold':'good'}>{admin?'حساب إداري':`الاشتراك: ${remainingText(profile.subscriptionExpiresAt,now)} متبقية`}</Pill>
+     {!admin&&<div className="topbar-whatsapp"><WhatsAppContact reason="question" email={profile.email} compact/></div>}
+     <button type="button" className="logout-button topbar-logout" onClick={handleLogout} disabled={loggingOut}><LogOut size={17}/><span>{loggingOut?'جارٍ الخروج…':'تسجيل الخروج'}</span></button>
+    </div></div>
    {nearExpiry&&<div className="renewal-notice"><CalendarClock size={19}/>
     <span>اشتراكك ينتهي خلال {remainingText(profile.subscriptionExpiresAt,now)}. تواصلي مع الإدارة لتجديده دون فقدان بياناتك.</span>
     <button className="link" disabled={renewalRequested||renewalBusy} onClick={requestRenewal}>{renewalRequested?'طلبك قيد المتابعة':'طلب التجديد'}</button>
+    <WhatsAppContact reason="renewal" email={profile.email} compact/>
    </div>}
    {tab==='home'&&<section>
     <div className="hero"><div><span className="eyebrow light">مساحة عملك التعليمية</span><h1>أهلًا بك، {profile.name.split(' ')[0]}</h1>
      <p>رتّب ملفات الأطفال، وابدأ تقييمًا جديدًا، وحوّل المهارات غير المتقنة إلى خطة عملية.</p>
      <button className="btn white" onClick={()=>changeTab('assessments')}>ابدأ التقييم <ChevronLeft size={18}/></button></div>
-     <div className="hero-art"><div className="hero-brand-images"><img className="hero-photo" src="/center-photo.jpeg" alt="صورة مركز حكاية طفل"/><img className="hero-center-logo" src="/center-logo.jpeg" alt="شعار مركز حكاية طفل"/></div><span>SPARK EDU</span></div></div>
+     <div className="hero-art"><FounderCard variant="hero"/></div></div>
     <div className="stat-grid">
      <div className="stat"><div className="stat-icon mint"><Users size={22}/></div><div><small>ملفات الأطفال</small><strong>{children.length}</strong></div></div>
      <div className="stat"><div className="stat-icon cream"><BookOpen size={22}/></div><div><small>البرامج المتاحة</small><strong>{programs.length}</strong></div></div>
@@ -503,7 +582,7 @@ export default function App(){
    </section>}
    {tab==='plans'&&<section>
     <div className="page-title"><span className="eyebrow">متابعة المهارات</span><h1>الخطة التربوية الفردية</h1><p>الأهداف غير المتقنة تُجمع هنا لتكوين مسودة قابلة للتعديل والتصدير.</p></div>
-    {plan?<><div className="panel pad print-page"><div className="plan-header"><div><span className="eyebrow">Spark Edu</span><h2>الخطة التربوية الفردية</h2>
+    {plan?<><div className="panel pad print-page"><div className="plan-header"><div><span className="eyebrow">SPEAK</span><h2>الخطة التربوية الفردية</h2>
       <p>الطفل: <strong>{plan.child}</strong> — البرنامج: <strong>{plan.program}</strong></p></div>
       <Pill kind="gold">{allPlanItems.length} هدف يحتاج تدريبًا</Pill></div>
       <div className="plan-metadata"><span>تاريخ الإعداد: {plan.date}</span><span>اسم المقيم: {plan.assessor}</span></div>
@@ -592,6 +671,7 @@ export default function App(){
       {a.goalId ? <Pill>هدف {a.goalId}</Pill> : null}</div>):<Empty title="لا توجد تعديلات مسجلة" desc="ستظهر هنا التفعيلات وتغييرات الأهداف."/>}
     </div>
    </section>}
+   <PlatformCredit/>
   </main>
   <nav className="mobile-nav no-print">
    <button className={tab==='home'?'selected':''} onClick={()=>changeTab('home')}><LayoutDashboard size={20}/><span>الرئيسية</span></button>

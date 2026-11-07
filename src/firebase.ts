@@ -2,7 +2,7 @@ import {initializeApp} from 'firebase/app';
 import {getAuth} from 'firebase/auth';
 import {getFirestore} from 'firebase/firestore';
 
-// Public Firebase Web App configuration provided for Spark Edu.
+// Public Firebase Web App configuration provided for SPEAK.
 // These values are not administrator credentials. Firestore security rules
 // enforce authorization on the server. Vercel VITE_* values override defaults.
 const defaults = {

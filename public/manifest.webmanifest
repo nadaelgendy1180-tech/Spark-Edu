@@ -1,6 +1,6 @@
 {
-  "name": "Spark Edu | منصة التقييم والتأهيل",
-  "short_name": "Spark Edu",
+  "name": "SPEAK | منصة التقييم والتأهيل",
+  "short_name": "SPEAK",
   "id": "/",
   "lang": "ar",
   "dir": "rtl",
@@ -9,7 +9,7 @@
   "display": "standalone",
   "background_color": "#f6f9f9",
   "theme_color": "#08766c",
-  "description": "منصة برامج التقييم والتأهيل والخطط التربوية الفردية",
+  "description": "SPEAK — منصة للتقييم والتأهيل والخطط الفردية. فكرة وإعداد دكتورة ندا الجندي",
   "icons": [
     {
       "src": "/app-icon-192.png",
