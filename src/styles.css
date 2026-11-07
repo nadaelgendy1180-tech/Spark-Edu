@@ -11,3 +11,21 @@
 .goal-heading-actions{display:flex;flex-wrap:wrap;gap:7px;align-items:center;justify-content:flex-end}
 
 .auth-images{display:flex;align-items:center;gap:13px;margin-top:22px}.auth-images img{width:67px;height:67px;border-radius:17px;object-fit:cover;background:white;border:3px solid #ffffff70;box-shadow:0 9px 24px #053c3540}.auth-images img:first-child{object-fit:contain}.hero-photo{width:106px;height:106px;border:4px solid #ffffff55;border-radius:26px;object-fit:cover;transform:rotate(10deg);box-shadow:0 13px 34px #063c3950}@media(max-width:760px){.hero-photo{width:65px;height:65px}}
+/* Spark Edu — administrator import, subscriptions and renewal */
+.subscriber-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px;align-items:end}
+.subscriber-form .btn{align-self:end;min-height:44px;white-space:nowrap}
+.subscriber-controls{display:flex;gap:12px;flex-wrap:wrap;margin:15px 0}
+.subscriber-controls input{min-width:200px;flex:1}.subscriber-controls select{min-width:175px;max-width:270px}
+.import-form{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:17px 0}
+.import-form input[type=file]{max-width:100%;flex:1;min-width:210px}
+.import-progress{padding:16px;border:1px solid #d6ebe5;border-radius:12px;background:#f4faf8;color:#146b61;font-size:12px;line-height:2}
+.import-progress progress{width:100%;height:9px;display:block;accent-color:#078d7d;margin-top:10px}
+.renewal-notice{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:13px 17px;margin-bottom:18px;background:#fffaef;border:1px solid #f4e0b6;border-radius:12px;color:#775522;font-size:12px}
+.renewal-notice span{flex:1}.renewal-notice a{font-weight:800;color:#087a70}
+.activation-card a.btn{display:inline-flex;justify-content:center;align-items:center;text-decoration:none}
+@media(max-width:900px){.subscriber-form{grid-template-columns:1fr 1fr}.subscriber-form .btn{grid-column:1/-1}}
+@media(max-width:600px){.subscriber-form{grid-template-columns:1fr}.subscriber-form .btn{grid-column:auto}.import-form{align-items:stretch}.import-form button{width:100%}.subscriber-controls select{max-width:none;flex:1}}
+.import-approval{display:flex;gap:10px;align-items:center;flex-direction:row!important;background:#fffcf5;border-radius:10px;padding:12px 14px;line-height:1.9;font-size:11px;color:#725d31}
+.import-approval input{width:17px;height:17px;flex-shrink:0;accent-color:#048679}
+.import-approval{display:flex;gap:10px;align-items:center;flex-direction:row!important;background:#fffcf5;border-radius:10px;padding:12px 14px;line-height:1.9;font-size:11px;color:#725d31}
+.import-approval input{width:17px;height:17px;flex-shrink:0;accent-color:#048679}

@@ -4,7 +4,10 @@ import {
   ShieldCheck, UserRound, Users, Sparkles, ChevronLeft, CheckCircle2, CircleX,
   Printer, Download, Pencil, Save, LockKeyhole, RefreshCw, ListChecks, CalendarClock
 } from 'lucide-react';
-import {auth,db} from './firebase';
+import {app,auth,db} from './firebase';
+import {initializeApp,getApps} from 'firebase/app';
+import {getAuth,inMemoryPersistence,setPersistence,deleteUser} from 'firebase/auth';
+import {importProgramBundle,readProgramBundle,type ImportProgress} from './programImport';
 import type {Assessment,Answer,AnswerMap,Child,Domain,Goal,PlanItem,Profile,Program} from './types';
 import {saveWord,type ExportPlan} from './export';
 import {
@@ -17,7 +20,23 @@ import {
 } from 'firebase/firestore';
 
 type Tab='home'|'children'|'assessments'|'plans'|'admin';
+const ADMIN_EMAIL = 'nadaelgendy1180@gmail.com';
+const MONTH_MILLIS = 30 * 86400000;
+const remainingText = (expiry?:Timestamp, now=Date.now()):string => {
+  if(!expiry)return 'لم يُحدد';
+  const remain=expiry.toMillis()-now;
+  if(remain<=0)return 'منتهي';
+  return remain<86400000 ? `${Math.max(1,Math.ceil(remain/3600000))} ساعة` : `${Math.ceil(remain/86400000)} يوم`;
+};
+function subscriberStatus(p:Profile,now=Date.now()){
+  if(p.role==='admin')return 'admin';
+  if(p.state==='blocked')return 'blocked';
+  if(p.state==='pending')return 'pending';
+  return p.state==='active' && (p.subscriptionExpiresAt?.toMillis()||0)>now ? 'active' : 'expired';
+}
+
 type AuditLog={id:string;at?:Timestamp;action?:string;actorUid?:string;actorName?:string;goalId?:string};
+type RenewalRequest={id:string;uid:string;email:string;name:string;status:'pending'|'resolved';requestedAt?:Timestamp;resolvedAt?:Timestamp};
 const nowDate=()=>new Date().toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'});
 const dateFrom=(t?:Timestamp)=>t?.toDate().toLocaleDateString('ar-EG')||'—';
 const message=(e:unknown)=>e instanceof Error ?e.message:'حدث خطأ غير متوقع';
@@ -81,8 +100,19 @@ export default function App(){
  const [children,setChildren]=useState<Child[]>([]),[programs,setPrograms]=useState<Program[]>([]);
  const [assessments,setAssessments]=useState<Assessment[]>([]);
  const [users,setUsers]=useState<Profile[]>([]),[audits,setAudits]=useState<AuditLog[]>([]);
+ const [renewals,setRenewals]=useState<RenewalRequest[]>([]),[renewalRequested,setRenewalRequested]=useState(false);
+ const [renewalBusy,setRenewalBusy]=useState(false);
  const [childName,setChildName]=useState(''),[birthDate,setBirthDate]=useState(''),[childNotes,setChildNotes]=useState('');
  const [busy,setBusy]=useState(false);
+ const [now,setNow]=useState(Date.now());
+ const [newSubscriberName,setNewSubscriberName]=useState(''),[newSubscriberEmail,setNewSubscriberEmail]=useState('');
+ const [newSubscriberPassword,setNewSubscriberPassword]=useState('');
+ const [subscriberBusy,setSubscriberBusy]=useState(false),[subscriberSearch,setSubscriberSearch]=useState('');
+ const [subscriberFilter,setSubscriberFilter]=useState<'all'|'active'|'pending'|'expired'|'blocked'>('all');
+ const [importFile,setImportFile]=useState<File|null>(null);
+ const [importBusy,setImportBusy]=useState(false),[importProgress,setImportProgress]=useState<ImportProgress|null>(null);
+ const [reviewedImport,setReviewedImport]=useState(false);
+
  const [chosenChild,setChosenChild]=useState(''),[chosenProgram,setChosenProgram]=useState('');
  const [active,setActive]=useState<Assessment|null>(null),[domains,setDomains]=useState<Domain[]>([]);
  const [selectedDomain,setSelectedDomain]=useState(''),[goals,setGoals]=useState<Goal[]>([]);
@@ -94,9 +124,18 @@ export default function App(){
  const [adminProgram,setAdminProgram]=useState(''),[newProgramName,setNewProgramName]=useState('');
  const [newDomainName,setNewDomainName]=useState(''),[newGoalText,setNewGoalText]=useState('');
  const admin=profile?.role==='admin';
- const enabled=!!(admin||(profile?.state==='active' && (profile.subscriptionExpiresAt?.toMillis() ?? 0) > Date.now()));
+ const enabled=!!(admin||(profile?.state==='active' && (profile.subscriptionExpiresAt?.toMillis() ?? 0) > now));
+ const subscriptions=users.filter(u=>u.role!=='admin');
+ const filteredSubscriptions=subscriptions.filter(u=>(subscriberFilter==='all'||subscriberStatus(u,now)===subscriberFilter)
+   && `${u.name} ${u.email}`.toLowerCase().includes(subscriberSearch.toLowerCase()));
+ const expiringSoon=subscriptions.filter(u=>subscriberStatus(u,now)==='active' &&
+   (u.subscriptionExpiresAt?.toMillis()||0)-now <= 7*86400000).length;
+ const nearExpiry=!admin&&enabled&&(profile?.subscriptionExpiresAt?.toMillis()||0)-now <= 7*86400000;
+
  const banner=(txt:string)=>{setToast(txt);setTimeout(()=>setToast(''),4300);};
  useEffect(()=>onAuthStateChanged(auth,u=>{setUser(u);setLoading(false);}),[]);
+ useEffect(()=>{const timer=window.setInterval(()=>setNow(Date.now()),30000);return()=>window.clearInterval(timer);},[]);
+
  useEffect(()=>{
   if(!user){setProfile(null);setProfileMissing(false);return;}
   return onSnapshot(doc(db,'users',user.uid),snap=>{
@@ -118,10 +157,16 @@ export default function App(){
   return ()=>{un1();un2();un3();};
  },[user?.uid,enabled]);
  useEffect(()=>{
+  if(!user){setRenewalRequested(false);return;}
+  return onSnapshot(doc(db,'renewalRequests',user.uid),snap=>setRenewalRequested(snap.exists()&&snap.data().status==='pending'),()=>{});
+ },[user?.uid]);
+ useEffect(()=>{
   if(!admin)return;
   const a=onSnapshot(collection(db,'users'),snap=>setUsers(snap.docs.map(d=>({id:d.id,...d.data()} as Profile))),e=>banner(message(e)));
   const b=onSnapshot(collection(db,'auditLogs'),snap=>setAudits(snap.docs.map(d=>({id:d.id,...d.data()} as AuditLog)).sort((x,y)=>(y.at?.toMillis()||0)-(x.at?.toMillis()||0)).slice(0,25)),e=>banner(message(e)));
-  return ()=>{a();b();};
+  const c=onSnapshot(collection(db,'renewalRequests'),snap=>setRenewals(snap.docs.map(d=>({id:d.id,...d.data()} as RenewalRequest)).filter(r=>r.status==='pending')),
+   e=>banner('تعذر تحميل طلبات التجديد: '+message(e)));
+  return ()=>{a();b();c();};
  },[admin]);
  useEffect(()=>{
   if(!active){setDomains([]);setSelectedDomain('');setGoals([]);return;}
@@ -227,10 +272,88 @@ export default function App(){
   catch(e){banner(message(e));}
  }
  function finalPlan():ExportPlan|null{return plan?{...plan,items:allPlanItems}:null;}
+ async function requestRenewal(){
+  if(!user||!profile||renewalRequested||renewalBusy)return;
+  setRenewalBusy(true);
+  try{
+   await setDoc(doc(db,'renewalRequests',user.uid),{
+    uid:user.uid,name:profile.name,email:profile.email,
+    status:'pending',requestedAt:serverTimestamp(),
+   });
+   setRenewalRequested(true);
+   banner('تم إرسال طلب التجديد إلى لوحة الإدارة');
+  }catch(e){banner('تعذر إرسال الطلب: '+message(e));}
+  finally{setRenewalBusy(false);}
+ }
+ async function fulfillRenewal(request:RenewalRequest){
+  if(!admin||!user)return;
+  const target=users.find(u=>u.id===request.uid);
+  if(!target){banner('تعذر إيجاد حساب صاحب الطلب');return;}
+  if(!window.confirm(`تجديد اشتراك ${target.name} لمدة 30 يومًا؟`))return;
+  setBusy(true);
+  try{
+   const expiry=Timestamp.fromMillis(Math.max(Date.now(),target.subscriptionExpiresAt?.toMillis()||0)+MONTH_MILLIS);
+   const batch=writeBatch(db);
+   batch.update(doc(db,'users',target.id),{state:'active',subscriptionExpiresAt:expiry,updatedAt:serverTimestamp()});
+   batch.update(doc(db,'renewalRequests',request.id),{status:'resolved',resolvedAt:serverTimestamp()});
+   batch.set(doc(collection(db,'auditLogs')),{action:'renewal_request_approved',actorUid:user.uid,
+    actorName:profile?.name||'',targetUid:request.uid,until:expiry,at:serverTimestamp()});
+   await batch.commit();banner('تم تجديد الاشتراك وإغلاق طلب التجديد');
+  }catch(e){banner(message(e));}
+  finally{setBusy(false);}
+ }
+ async function createSubscriber(e:React.FormEvent){
+  e.preventDefault();
+  if(!admin||!user||subscriberBusy)return;
+  const name=newSubscriberName.trim();
+  const email=newSubscriberEmail.trim().toLowerCase();
+  if(name.length<3||!email.includes('@')||newSubscriberPassword.length<10){
+   banner('اكتبي اسمًا كاملًا وبريدًا صحيحًا وكلمة مرور من 10 أحرف على الأقل');return;
+  }
+  if(!window.confirm(`إنشاء حساب ${name} وتفعيله لمدة 30 يومًا؟`))return;
+  setSubscriberBusy(true);
+  // A separate, in-memory Auth instance prevents signing the administrator out.
+  const secondaryApp=getApps().find(a=>a.name==='spark-edu-provisioning')
+   ||initializeApp(app.options,'spark-edu-provisioning');
+  const secondaryAuth=getAuth(secondaryApp);
+  try{
+   await setPersistence(secondaryAuth,inMemoryPersistence);
+   const result=await createUserWithEmailAndPassword(secondaryAuth,email,newSubscriberPassword);
+   try{
+    await setDoc(doc(db,'users',result.user.uid),{
+     name,email,role:'specialist',state:'active',
+     subscriptionExpiresAt:Timestamp.fromMillis(Date.now()+MONTH_MILLIS),
+     createdAt:serverTimestamp(),updatedAt:serverTimestamp(),
+    });
+   }catch(e){
+    // Prevent an orphaned sign-in if the Firestore profile cannot be written.
+    try{await deleteUser(result.user);}catch{}
+    throw e;
+   }
+   setNewSubscriberName('');setNewSubscriberEmail('');setNewSubscriberPassword('');
+   banner('تم إنشاء المشترك وبدء اشتراكه لمدة 30 يومًا');
+  }catch(e){banner('تعذر إنشاء المشترك: '+message(e));}
+  finally{
+   try{await signOut(secondaryAuth);}catch{}
+   setNewSubscriberPassword('');setSubscriberBusy(false);
+  }
+ }
+ async function uploadPrograms(){
+  if(!admin||!importFile||importBusy)return;
+  setImportBusy(true);setImportProgress(null);
+  try{
+   const data=await readProgramBundle(importFile);
+   const count=data.programs.reduce((n,p)=>n+p.domains.reduce((m,d)=>m+d.goals.length,0),0);
+   if(!window.confirm(`سيتم استيراد ${data.programs.length} برامج و${count} هدفًا. ${reviewedImport?'سيتم اعتماد الأهداف الجديدة بناءً على إقرارك بالمراجعة.':'الأهداف غير المراجعة ستبقى غير معتمدة.'} استكمال؟`))return;
+   const result=await importProgramBundle(db,data,setImportProgress,reviewedImport);
+   banner(`اكتمل الاستيراد: ${result.goalsAdded} هدفًا جديدًا، و${result.goalsExisting} هدفًا موجودًا لم يُعدّل`);
+  }catch(e){banner('فشل الاستيراد: '+message(e));}
+  finally{setImportBusy(false);}
+ }
  async function updateSubscription(p:Profile,action:'activate'|'block'){
   if(!admin||!user)return;
   try{
-   const expiry=action==='activate'?Timestamp.fromMillis(Math.max(Date.now(),p.subscriptionExpiresAt?.toMillis()||0)+30*86400000):p.subscriptionExpiresAt||Timestamp.fromMillis(0);
+   const expiry=action==='activate'?Timestamp.fromMillis(Math.max(Date.now(),p.subscriptionExpiresAt?.toMillis()||0)+MONTH_MILLIS):p.subscriptionExpiresAt||Timestamp.fromMillis(0);
    const batch=writeBatch(db);
    batch.update(doc(db,'users',p.id),{state:action==='activate'?'active':'blocked',subscriptionExpiresAt:expiry,updatedAt:serverTimestamp()});
    batch.set(doc(collection(db,'auditLogs')),{action:action==='activate'?'subscription_extended':'user_blocked',actorUid:user.uid,
@@ -267,7 +390,11 @@ export default function App(){
   <div className="activation-card"><Logo/><span className="eyebrow">Spark Edu</span>
    <div className="lock"><LockKeyhole size={38}/></div>
    <h1>{profile.state==='blocked'?'الحساب موقوف':profile.state==='active'?'انتهت مدة الاشتراك':'حسابك في انتظار التفعيل'}</h1>
-   <p>مرحبًا {profile.name}، لا يمكن فتح التقييمات قبل تفعيل حسابك من مدير المنصة. الحساب محفوظ ويمكن تفعيله لمدة 30 يومًا.</p>
+   <p>مرحبًا {profile.name}، {profile.state==='active'?'انتهى اشتراكك الشهري. بياناتك محفوظة، ويمكنك استعادة استخدام جميع أقسام المنصة فور تجديد الاشتراك من الإدارة.':profile.state==='blocked'?'الحساب موقوف حاليًا، تواصلي مع الإدارة لمعرفة سبب الإيقاف.':'حسابك مسجل وبانتظار تفعيل اشتراكه من الإدارة.'}</p>
+   <Pill kind="gold">{profile.state==='active'?`تاريخ الانتهاء: ${dateFrom(profile.subscriptionExpiresAt)}`:'التفعيل من إدارة المنصة'}</Pill>
+   <button className="btn primary wide" style={{marginTop:14}} onClick={requestRenewal} disabled={renewalRequested||renewalBusy}>
+    {renewalRequested?'طلب التجديد وصل للإدارة':renewalBusy?'جارٍ إرسال الطلب':'إرسال طلب تجديد للإدارة'}</button>
+   <p className="hint">للتواصل المباشر: <a href={`mailto:${ADMIN_EMAIL}`}>{ADMIN_EMAIL}</a></p>
    <Pill kind="gold">البريد: {profile.email}</Pill>
    <button className="btn primary wide" style={{marginTop:26}} onClick={()=>signOut(auth)}>العودة لتسجيل الدخول</button>
   </div>
@@ -289,7 +416,11 @@ export default function App(){
   </aside>
   <main className="main">
    <div className="topbar"><div className="breadcrumbs">منصة Spark Edu <ChevronLeft size={15}/> {({home:'الرئيسية',children:'ملفات الأطفال',assessments:'التقييمات',plans:'الخطط التربوية',admin:'إدارة المنصة'} as Record<Tab,string>)[tab]}</div>
-    <Pill kind="good">{admin?'حساب إداري':`نشط حتى ${dateFrom(profile.subscriptionExpiresAt)}`}</Pill></div>
+    <Pill kind={nearExpiry?'gold':'good'}>{admin?'حساب إداري':`الاشتراك: ${remainingText(profile.subscriptionExpiresAt,now)} متبقية`}</Pill></div>
+   {nearExpiry&&<div className="renewal-notice"><CalendarClock size={19}/>
+    <span>اشتراكك ينتهي خلال {remainingText(profile.subscriptionExpiresAt,now)}. تواصلي مع الإدارة لتجديده دون فقدان بياناتك.</span>
+    <button className="link" disabled={renewalRequested||renewalBusy} onClick={requestRenewal}>{renewalRequested?'طلبك قيد المتابعة':'طلب التجديد'}</button>
+   </div>}
    {tab==='home'&&<section>
     <div className="hero"><div><span className="eyebrow light">مساحة عملك التعليمية</span><h1>أهلًا بك، {profile.name.split(' ')[0]}</h1>
      <p>رتّب ملفات الأطفال، وابدأ تقييمًا جديدًا، وحوّل المهارات غير المتقنة إلى خطة عملية.</p>
@@ -389,18 +520,54 @@ export default function App(){
    </section>}
    {tab==='admin'&&admin&&<section>
     <div className="page-title"><span className="eyebrow">الصلاحيات والاشتراكات</span><h1>إدارة المنصة</h1><p>التحكم في تفعيل الحسابات والمحتوى وسجل تعديلات البرامج.</p></div>
-    <div className="stat-grid"><div className="stat"><div className="stat-icon mint"><Users size={21}/></div><div><small>المستخدمون</small><strong>{users.length}</strong></div></div>
-     <div className="stat"><div className="stat-icon cream"><CalendarClock size={21}/></div><div><small>بانتظار التفعيل</small><strong>{users.filter(u=>u.state==='pending').length}</strong></div></div>
-     <div className="stat"><div className="stat-icon blue"><CheckCircle2 size={21}/></div><div><small>الاشتراكات السارية</small><strong>{users.filter(u=>u.state==='active'&&(u.subscriptionExpiresAt?.toMillis()||0)>Date.now()).length}</strong></div></div></div>
-    <div className="panel pad"><div className="section-head"><h3>المستخدمون والاشتراكات</h3><Pill kind="gold">التفعيل لمدة 30 يومًا</Pill></div>
-     <div className="responsive-table"><table><thead><tr><th>الاسم والبريد</th><th>الحالة</th><th>تاريخ الانتهاء</th><th>الإجراءات</th></tr></thead>
-      <tbody>{users.map(u=><tr key={u.id}><td><strong>{u.name}</strong><small>{u.email}</small></td>
-       <td><Pill kind={u.state==='active'?'good':u.state==='blocked'?'bad':'gold'}>{u.state==='active'?'مفعّل':u.state==='blocked'?'موقوف':'بانتظار التفعيل'}</Pill></td>
-       <td>{dateFrom(u.subscriptionExpiresAt)}</td><td className="table-actions">
-        {u.role!=='admin'&&<><button className="btn small ghost" onClick={()=>updateSubscription(u,'activate')}>تفعيل / تمديد 30 يومًا</button>
-         <button className="btn small danger" onClick={()=>updateSubscription(u,'block')}>إيقاف</button></>}
-        {u.role==='admin'&&<Pill>مدير</Pill>}
-       </td></tr>)}</tbody></table></div>
+    <div className="stat-grid"><div className="stat"><div className="stat-icon mint"><Users size={21}/></div><div><small>جميع المستخدمين</small><strong>{users.length}</strong></div></div>
+     <div className="stat"><div className="stat-icon cream"><CalendarClock size={21}/></div><div><small>بانتظار التفعيل</small><strong>{subscriptions.filter(u=>subscriberStatus(u,now)==='pending').length}</strong></div></div>
+     <div className="stat"><div className="stat-icon blue"><CheckCircle2 size={21}/></div><div><small>اشتراكات سارية</small><strong>{subscriptions.filter(u=>subscriberStatus(u,now)==='active').length}</strong></div></div>
+     <div className="stat"><div className="stat-icon cream"><CalendarClock size={21}/></div><div><small>تنتهي خلال 7 أيام</small><strong>{expiringSoon}</strong></div></div>
+     <div className="stat"><div className="stat-icon cream"><LockKeyhole size={21}/></div><div><small>منتهية / موقوفة</small><strong>{subscriptions.filter(u=>['expired','blocked'].includes(subscriberStatus(u,now))).length}</strong></div></div></div>
+    <div className="panel pad space-top"><div className="section-head"><h3><CalendarClock size={19}/> طلبات تجديد الاشتراكات</h3>
+     <Pill kind={renewals.length?'gold':'good'}>{renewals.length} طلب معلق</Pill></div>
+     {renewals.length?renewals.map(r=><div className="list-row" key={r.id}>
+      <span className="list-icon"><CalendarClock size={19}/></span><div className="grow"><strong>{r.name}</strong><small>{r.email} — {dateFrom(r.requestedAt)}</small></div>
+      <button className="btn small primary" disabled={busy} onClick={()=>fulfillRenewal(r)}>تجديد 30 يومًا</button>
+     </div>):<p className="hint">لا توجد طلبات تجديد معلقة حاليًا.</p>}
+    </div>
+    <div className="panel pad space-top"><div className="section-head"><h3><UserRound size={19}/> إنشاء مشترك جديد</h3><Pill kind="gold">اشتراك 30 يومًا من تاريخ الإنشاء</Pill></div>
+     <form className="subscriber-form" onSubmit={createSubscriber}>
+      <label>الاسم الكامل<input required minLength={3} value={newSubscriberName} onChange={e=>setNewSubscriberName(e.target.value)} placeholder="اسم الأخصائي"/></label>
+      <label>البريد الإلكتروني<input required type="email" value={newSubscriberEmail} onChange={e=>setNewSubscriberEmail(e.target.value)} placeholder="email@example.com" dir="ltr"/></label>
+      <label>كلمة مرور مؤقتة<input required minLength={10} type="password" value={newSubscriberPassword} onChange={e=>setNewSubscriberPassword(e.target.value)} autoComplete="new-password" placeholder="10 أحرف على الأقل" dir="ltr"/></label>
+      <button className="btn primary" disabled={subscriberBusy}>{subscriberBusy?'جارٍ إنشاء الحساب':'إنشاء مشترك وتفعيله'}</button>
+     </form>
+     <p className="hint">تُحفظ كلمة المرور في Firebase Authentication ولا تُخزَّن في Firestore. شاركيها مع صاحب الحساب بطريقة آمنة واطلبي منه تغييرها بعد الدخول.</p>
+    </div>
+    <div className="panel pad space-top"><div className="section-head"><h3>المشتركون والاشتراكات</h3><Pill kind="gold">التجديد اليدوي لمدة 30 يومًا</Pill></div>
+     <div className="subscriber-controls"><input value={subscriberSearch} onChange={e=>setSubscriberSearch(e.target.value)} placeholder="بحث بالاسم أو البريد" aria-label="بحث المستخدمين"/>
+      <select value={subscriberFilter} onChange={e=>setSubscriberFilter(e.target.value as typeof subscriberFilter)} aria-label="تصفية حالة الاشتراك">
+       <option value="all">كل المشتركين</option><option value="active">مفعّلون</option><option value="pending">بانتظار التفعيل</option>
+       <option value="expired">انتهى الاشتراك</option><option value="blocked">موقوفون</option>
+      </select></div>
+     <div className="responsive-table"><table><thead><tr><th>الاسم والبريد</th><th>حالة الاشتراك</th><th>تاريخ الانتهاء</th><th>الوقت المتبقي</th><th>الإجراءات</th></tr></thead>
+      <tbody>{filteredSubscriptions.map(u=>{const status=subscriberStatus(u,now);return <tr key={u.id}>
+       <td><strong>{u.name}</strong><small>{u.email}</small></td>
+       <td><Pill kind={status==='active'?'good':status==='pending'?'gold':'bad'}>{status==='active'?'مفعّل':status==='blocked'?'موقوف':status==='pending'?'غير مفعّل':'انتهى الاشتراك'}</Pill></td>
+       <td>{dateFrom(u.subscriptionExpiresAt)}</td>
+       <td><strong>{status==='active'?remainingText(u.subscriptionExpiresAt,now):status==='expired'?'منتهي':'—'}</strong></td>
+       <td><div className="table-actions"><button type="button" className="btn small ghost" onClick={()=>updateSubscription(u,'activate')}>تفعيل / تجديد 30 يومًا</button>
+       {status!=='blocked'&&<button type="button" className="btn small danger" onClick={()=>updateSubscription(u,'block')}>إيقاف</button>}</div></td></tr>;})}</tbody></table></div>
+     {!filteredSubscriptions.length&&<p className="hint">لا يوجد مشتركون مطابقون للبحث الحالي.</p>}
+    </div>
+    <div className="panel pad space-top"><h3><BookOpen size={19}/> استيراد البرامج والأهداف دفعة واحدة</h3>
+     <p className="hint">اختاري ملف <code>spark-programs-PRIVATE.json</code> بعد فك ضغطه على جهازك. لا ترفعي ملف الأهداف الخاص إلى GitHub العام. سيتم استيراد البرامج والمجالات والأهداف في دفعات، دون حذف أو استبدال أهداف سبق تعديلها.</p>
+     <div className="import-form"><input type="file" accept=".json,application/json" aria-label="ملف البرامج" disabled={importBusy}
+      onChange={e=>{setImportFile(e.target.files?.[0]||null);setImportProgress(null);}}/>
+      <button type="button" className="btn primary" onClick={uploadPrograms} disabled={!importFile||importBusy}>{importBusy?'جارٍ استيراد البرامج…':'استيراد كل البرامج مرة واحدة'}</button></div>
+     <label className="import-approval"><input type="checkbox" checked={reviewedImport} disabled={importBusy} onChange={e=>setReviewedImport(e.target.checked)}/>
+      أُقر أنني راجعت بنود البرامج وحقوق استخدامها، وأريد اعتماد الأهداف الجديدة فور الاستيراد لتظهر للمشتركين.</label>
+     {importProgress&&<div className="import-progress" role="status">{importProgress.stage} — {importProgress.programsDone} / {importProgress.programsTotal} برامج،
+      {importProgress.goalsAdded} هدف جديد، {importProgress.goalsExisting} هدف موجود، {importProgress.documentsWritten} مستند محفوظ.
+      <progress max={importProgress.programsTotal} value={importProgress.programsDone}/></div>}
+     <p className="hint">افتراضيًا الأهداف المستوردة تكون قيد المراجعة، ولا تظهر للتقييم قبل اعتمادها. يمكن إظهارها فورًا فقط بعد إقرار المدير بالمراجعة وحقوق الاستخدام. يُفضّل إبقاء الصفحة مفتوحة حتى اكتمال العملية.</p>
     </div>
     <div className="panel pad space-top"><h3><BookOpen size={19}/> إدارة مكتبة البرامج</h3>
       <div className="admin-editor"><label>اسم برنامج جديد<input value={newProgramName} onChange={e=>setNewProgramName(e.target.value)} placeholder="اسم البرنامج"/></label><button className="btn primary" onClick={addProgram}>إضافة برنامج</button></div>
@@ -411,7 +578,7 @@ export default function App(){
        {adminDomains.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
        <label>هدف جديد<input value={newGoalText} onChange={e=>setNewGoalText(e.target.value)} placeholder="نص الهدف السلوكي"/></label>
        <button className="btn ghost" disabled={!adminDomain} onClick={addGoal}>إضافة هدف</button></div>
-      <p className="hint">لتعديل نص هدف موجود أو اعتماده: افتح أي تقييم، واختر المجال ثم اضغط «تعديل الهدف». الاستيراد الأولي من Word يتم بأمان عبر سكربت الإدارة المحلي وليس من واجهة المستخدمين.</p>
+      <p className="hint">لتعديل نص هدف موجود أو اعتماده: افتح أي تقييم، واختر المجال ثم اضغط «تعديل الهدف». يمكن الآن استيراد ملف الأهداف JSON مباشرة من لوحة المدير في الأعلى؛ ثم مراجعة كل مجال واعتماد أهدافه.</p>
     </div>
     <div className="panel pad space-top"><h3><RefreshCw size={19}/> سجل آخر التعديلات</h3>
      {audits.length?audits.slice(0,15).map(a=><div key={a.id} className="list-row"><span className="list-icon"><ShieldCheck size={17}/></span><div className="grow"><strong>{String(a.action||'تعديل')}</strong>

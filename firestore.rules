@@ -16,17 +16,46 @@ service cloud.firestore {
   match /users/{uid} {
    allow get: if self(uid) || isAdmin();
    allow list: if isAdmin();
-   allow create: if self(uid)
-    && request.resource.data.keys().hasOnly(['name','email','role','state','subscriptionExpiresAt','createdAt','updatedAt'])
-    && request.resource.data.role == 'specialist'
-    && request.resource.data.state == 'pending'
-    && request.resource.data.email == request.auth.token.email
+   // New public sign-ups are pending; an existing admin can provision active specialists.
+   // No client may self-assign the admin role.
+   allow create: if request.resource.data.keys().hasOnly([
+      'name','email','role','state','subscriptionExpiresAt','createdAt','updatedAt'
+    ])
     && request.resource.data.name is string
+    && request.resource.data.email is string
     && request.resource.data.subscriptionExpiresAt is timestamp
-    && request.resource.data.subscriptionExpiresAt < request.time;
+    && request.resource.data.role == 'specialist'
+    && (
+      (self(uid)
+        && request.resource.data.state == 'pending'
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.subscriptionExpiresAt < request.time)
+      || (isAdmin() && request.resource.data.state == 'active'
+        && request.resource.data.subscriptionExpiresAt > request.time)
+    );
    allow update: if isAdmin() || (self(uid)
      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','updatedAt'])
      && request.resource.data.name is string);
+   allow delete: if false;
+  }
+  match /renewalRequests/{uid} {
+   allow get: if self(uid) || isAdmin();
+   allow list: if isAdmin();
+   // One pending request per signed-in user; a resolved request can be reopened.
+   allow create: if self(uid)
+    && request.resource.data.keys().hasOnly(['uid','name','email','status','requestedAt'])
+    && request.resource.data.uid == uid
+    && request.resource.data.email == request.auth.token.email
+    && request.resource.data.status == 'pending'
+    && request.resource.data.name is string;
+   allow update: if isAdmin() || (
+    self(uid)
+    && resource.data.status == 'resolved'
+    && request.resource.data.keys().hasOnly(['uid','name','email','status','requestedAt'])
+    && request.resource.data.uid == uid
+    && request.resource.data.email == request.auth.token.email
+    && request.resource.data.status == 'pending'
+   );
    allow delete: if false;
   }
   match /children/{childId} {
