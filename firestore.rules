@@ -4,9 +4,10 @@ service cloud.firestore {
   function signedIn() { return request.auth != null; }
   function self(uid) { return signedIn() && request.auth.uid == uid; }
   function profile() { return get(/databases/$(database)/documents/users/$(request.auth.uid)); }
-  function isAdmin() { return signedIn() && profile().data.role == 'admin'; }
+  function isAdmin() { return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && profile().data.role == 'admin'; }
   function active() { return signedIn() && (
     isAdmin() || (
+      exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
       profile().data.state == 'active' &&
       profile().data.subscriptionExpiresAt is timestamp &&
       profile().data.subscriptionExpiresAt > request.time

@@ -29,3 +29,47 @@
 .import-approval input{width:17px;height:17px;flex-shrink:0;accent-color:#048679}
 .import-approval{display:flex;gap:10px;align-items:center;flex-direction:row!important;background:#fffcf5;border-radius:10px;padding:12px 14px;line-height:1.9;font-size:11px;color:#725d31}
 .import-approval input{width:17px;height:17px;flex-shrink:0;accent-color:#048679}
+
+/* Spark Edu: 2026 visual identity, install affordance and responsive center branding. */
+.brand-logo{overflow:hidden;background:#fff;box-shadow:0 7px 18px rgba(7,91,81,.12)}
+.brand-logo img{display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit}
+.auth-visual{isolation:isolate}
+.auth-visual:before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 72% 20%,rgba(253,216,124,.13),transparent 42%)}
+.auth-images{position:relative;gap:16px;flex-wrap:wrap}
+.auth-images img{width:clamp(82px,9vw,120px);height:clamp(82px,9vw,120px);border-radius:22px;animation:brandLevitate 7s ease-in-out infinite}
+.auth-images img:nth-child(2){animation-delay:-3.5s}
+.mobile-brand-showcase{display:none}
+.auth-install{margin-top:21px;display:flex;justify-content:center}
+.install-app-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:38px;border-radius:12px;padding:8px 12px;white-space:nowrap;background:#fff8e6;color:#805d1b;border:1px solid #e7d5aa;font-size:11px;font-weight:800;cursor:pointer}
+.install-app-button:hover{background:#fff0c6}
+.install-app-button.compact{background:#e7f6f3;color:#08766c;border-color:#d8ebe6}
+.topbar-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.hero{isolation:isolate;position:relative}
+.hero:before{content:"";position:absolute;inset:-40%;background:radial-gradient(circle at 12% 88%,rgba(255,224,158,.11),transparent 45%);pointer-events:none}
+.hero-art{min-width:200px;position:relative;opacity:1;transform:none;flex-shrink:0}
+.hero-brand-images{display:flex;align-items:center;justify-content:center;direction:ltr}
+.hero-brand-images .hero-photo{width:125px;height:125px;transform:rotate(-8deg);animation:brandLevitate 8s ease-in-out infinite}
+.hero-center-logo{width:95px;height:95px;object-fit:contain;background:#fff;box-shadow:0 13px 34px rgba(0,35,31,.18);border:4px solid rgba(255,255,255,.75);border-radius:22px;margin-inline-start:-24px;transform:rotate(8deg);animation:brandLevitateAlt 8s ease-in-out infinite}
+.hero-art>span{font-size:15px;letter-spacing:3px;color:#e2e6d1;margin-top:6px}
+@keyframes brandLevitate{0%,100%{translate:0 0}50%{translate:0 -8px}}
+@keyframes brandLevitateAlt{0%,100%{translate:0 -5px}50%{translate:0 4px}}
+@media (max-width:1000px){.hero-art{min-width:150px}.hero-brand-images .hero-photo{width:100px;height:100px}.hero-center-logo{width:75px;height:75px}}
+@media (max-width:760px){
+ .auth-form{align-items:flex-start;padding:15px 18px 45px}
+ .mobile-brand-showcase{display:flex;align-items:end;position:relative;overflow:hidden;border-radius:24px;min-height:205px;max-height:250px;margin:5px 0 24px;background:#086c63;isolation:isolate}
+ .mobile-center-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 33%;opacity:.42}
+ .mobile-brand-showcase:after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,rgba(3,60,52,.93),rgba(3,60,52,.06) 75%);z-index:0}
+ .mobile-brand-copy{position:relative;z-index:1;display:flex;align-items:center;gap:13px;color:#fff;padding:17px;width:100%;font-size:14px;font-weight:800;line-height:1.8}
+ .mobile-brand-copy img{width:70px;height:70px;object-fit:contain;background:#fff;border-radius:16px;padding:3px;box-shadow:0 10px 25px #002c2b50}
+ .mobile-mark{margin-bottom:17px;font-size:20px}
+ .auth-card{max-width:480px}
+ .hero{align-items:center;padding:25px 18px;gap:9px;flex-wrap:wrap}
+ .hero-art{margin-inline-start:auto;min-width:unset;max-width:100%;align-items:center}
+ .hero-brand-images .hero-photo{width:74px;height:74px;border-radius:18px}
+ .hero-center-logo{width:56px;height:56px;border-radius:13px;margin-inline-start:-14px}
+ .hero-art>span{display:none}
+ .topbar{flex-wrap:wrap}.topbar-actions{flex-wrap:wrap}.topbar .pill{white-space:normal}
+}
+@media (max-width:420px){.mobile-brand-showcase{min-height:175px}.hero h1{font-size:22px}.hero-art{max-width:110px}.topbar-actions .install-app-button{font-size:10px}}
+@media (prefers-reduced-motion:reduce){.auth-images img,.hero-brand-images img{animation:none!important}.install-app-button{transition:none}}
+@media print{.mobile-brand-showcase,.auth-install,.topbar-actions{display:none!important}}

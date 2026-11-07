@@ -1,13 +1,14 @@
 import React,{useEffect,useState} from 'react';
 import {
   BookOpen, ClipboardCheck, FileText, GraduationCap, LayoutDashboard, LogOut, Plus,
-  ShieldCheck, UserRound, Users, Sparkles, ChevronLeft, CheckCircle2, CircleX,
+  ShieldCheck, UserRound, Users, ChevronLeft, CheckCircle2, CircleX,
   Printer, Download, Pencil, Save, LockKeyhole, RefreshCw, ListChecks, CalendarClock
 } from 'lucide-react';
 import {app,auth,db} from './firebase';
 import {initializeApp,getApps} from 'firebase/app';
 import {getAuth,inMemoryPersistence,setPersistence,deleteUser} from 'firebase/auth';
 import {importProgramBundle,readProgramBundle,type ImportProgress} from './programImport';
+import InstallAppButton from './InstallAppButton';
 import type {Assessment,Answer,AnswerMap,Child,Domain,Goal,PlanItem,Profile,Program} from './types';
 import {saveWord,type ExportPlan} from './export';
 import {
@@ -40,7 +41,7 @@ type RenewalRequest={id:string;uid:string;email:string;name:string;status:'pendi
 const nowDate=()=>new Date().toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'});
 const dateFrom=(t?:Timestamp)=>t?.toDate().toLocaleDateString('ar-EG')||'—';
 const message=(e:unknown)=>e instanceof Error ?e.message:'حدث خطأ غير متوقع';
-function Logo(){return <span className="brand-logo"><Sparkles size={24} strokeWidth={2.1}/></span>;}
+function Logo(){return <span className="brand-logo"><img src="/app-icon-192.png" alt="شعار منصة Spark Edu" width={46} height={46}/></span>;}
 function Pill({children,kind='muted'}:{children:React.ReactNode;kind?:'muted'|'good'|'bad'|'gold'}){return <span className={'pill '+kind}>{children}</span>;}
 function Empty({title,desc}:{title:string;desc:string}){return <div className="empty"><div className="empty-symbol"><BookOpen size={30}/></div><h3>{title}</h3><p>{desc}</p></div>;}
 
@@ -74,6 +75,10 @@ function AuthScreen(){
    </div><span className="auth-foot">SPARK EDU • 2026</span>
   </section>
   <section className="auth-form"><div className="auth-card">
+   <div className="mobile-brand-showcase">
+    <img className="mobile-center-photo" src="/center-photo.jpeg" alt="صورة مركز حكاية طفل"/>
+    <div className="mobile-brand-copy"><img src="/center-logo.jpeg" alt="شعار مركز حكاية طفل"/><span>منصة Spark Edu<br/>للتقييم والتأهيل</span></div>
+   </div>
    <div className="mobile-mark"><Logo/><strong>Spark Edu</strong></div>
    <span className="eyebrow">مرحبًا بك</span><h2>{mode==='login'?'سجّل دخولك':'أنشئ حسابك'}</h2>
    <p className="subtle">{mode==='login'?'ابدأ التقييم وأكمل خطط الأطفال من آخر نقطة.':'بعد التسجيل، فعّل اشتراكك من إدارة المنصة.'}</p>
@@ -88,6 +93,7 @@ function AuthScreen(){
     <button className="link" type="button" onClick={()=>{setMode(mode==='login'?'signup':'login');setError('');}}>{mode==='login'?'ليس لديك حساب؟ أنشئ حسابًا':'لديك حساب؟ سجّل دخولك'}</button>
     {mode==='login'&&<button className="link" type="button" onClick={reset}>نسيت كلمة المرور؟</button>}
    </div>
+   <div className="auth-install"><InstallAppButton/></div>
   </div></section>
  </div>;
 }
@@ -165,7 +171,7 @@ export default function App(){
   const a=onSnapshot(collection(db,'users'),snap=>setUsers(snap.docs.map(d=>({id:d.id,...d.data()} as Profile))),e=>banner(message(e)));
   const b=onSnapshot(collection(db,'auditLogs'),snap=>setAudits(snap.docs.map(d=>({id:d.id,...d.data()} as AuditLog)).sort((x,y)=>(y.at?.toMillis()||0)-(x.at?.toMillis()||0)).slice(0,25)),e=>banner(message(e)));
   const c=onSnapshot(collection(db,'renewalRequests'),snap=>setRenewals(snap.docs.map(d=>({id:d.id,...d.data()} as RenewalRequest)).filter(r=>r.status==='pending')),
-   e=>banner('تعذر تحميل طلبات التجديد: '+message(e)));
+   e=>{setRenewals([]);banner(e.code==='permission-denied'?'تعذر قراءة طلبات التجديد: راجعي قواعد Firestore المنشورة وصلاحية المدير (role: admin).':'تعذر تحميل طلبات التجديد: '+message(e));});
   return ()=>{a();b();c();};
  },[admin]);
  useEffect(()=>{
@@ -416,7 +422,7 @@ export default function App(){
   </aside>
   <main className="main">
    <div className="topbar"><div className="breadcrumbs">منصة Spark Edu <ChevronLeft size={15}/> {({home:'الرئيسية',children:'ملفات الأطفال',assessments:'التقييمات',plans:'الخطط التربوية',admin:'إدارة المنصة'} as Record<Tab,string>)[tab]}</div>
-    <Pill kind={nearExpiry?'gold':'good'}>{admin?'حساب إداري':`الاشتراك: ${remainingText(profile.subscriptionExpiresAt,now)} متبقية`}</Pill></div>
+    <div className="topbar-actions"><InstallAppButton compact/><Pill kind={nearExpiry?'gold':'good'}>{admin?'حساب إداري':`الاشتراك: ${remainingText(profile.subscriptionExpiresAt,now)} متبقية`}</Pill></div></div>
    {nearExpiry&&<div className="renewal-notice"><CalendarClock size={19}/>
     <span>اشتراكك ينتهي خلال {remainingText(profile.subscriptionExpiresAt,now)}. تواصلي مع الإدارة لتجديده دون فقدان بياناتك.</span>
     <button className="link" disabled={renewalRequested||renewalBusy} onClick={requestRenewal}>{renewalRequested?'طلبك قيد المتابعة':'طلب التجديد'}</button>
@@ -425,7 +431,7 @@ export default function App(){
     <div className="hero"><div><span className="eyebrow light">مساحة عملك التعليمية</span><h1>أهلًا بك، {profile.name.split(' ')[0]}</h1>
      <p>رتّب ملفات الأطفال، وابدأ تقييمًا جديدًا، وحوّل المهارات غير المتقنة إلى خطة عملية.</p>
      <button className="btn white" onClick={()=>changeTab('assessments')}>ابدأ التقييم <ChevronLeft size={18}/></button></div>
-     <div className="hero-art"><img className="hero-photo" src="/center-photo.jpeg" alt="صورة الجهة التعليمية"/><span>SPARK</span></div></div>
+     <div className="hero-art"><div className="hero-brand-images"><img className="hero-photo" src="/center-photo.jpeg" alt="صورة مركز حكاية طفل"/><img className="hero-center-logo" src="/center-logo.jpeg" alt="شعار مركز حكاية طفل"/></div><span>SPARK EDU</span></div></div>
     <div className="stat-grid">
      <div className="stat"><div className="stat-icon mint"><Users size={22}/></div><div><small>ملفات الأطفال</small><strong>{children.length}</strong></div></div>
      <div className="stat"><div className="stat-icon cream"><BookOpen size={22}/></div><div><small>البرامج المتاحة</small><strong>{programs.length}</strong></div></div>
